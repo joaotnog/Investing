@@ -7,6 +7,8 @@
 #=======================================================#
 
 #Libaries:
+library(plyr)
+library(quantmod)
 library(dplyr)
 library(reshape2)
 library(tidyr)
@@ -85,3 +87,34 @@ unlist(lapply(main_df, function(x){class(x)})) #Class of all variables.
 
 #Assess NAs:
 unlist(lapply(main_df, function(x){sum(is.na(x))})) #NAs of all variables.
+
+
+#=======================================================#
+#                     JOIN STOCK PRICES
+#=======================================================#
+
+symbols <- unique(as.character(main_df$COMPANY))
+
+stocks.raw <- list()
+for (s in symbols)
+{
+  print(paste0("Reading ",s,"..."))
+  try({stocks.raw[[s]] <- get(getSymbols(s))})
+}
+
+stocks = lapply(stocks.raw, function(x) {
+  dt <- as.data.frame(x) %>%
+    select(contains("Adjusted")) %>%
+    mutate(date = index(x))
+  return(dt)
+}) %>%
+  join_all(type="full") %>%
+  gather(COMPANY, price, -date) %>%
+  mutate(COMPANY = gsub(".Adjusted","",COMPANY))
+
+main_df$date = as.Date(main_df$DATE,"%Y%m%d")
+  
+main_df <- main_df %>%
+  left_join(stocks) %>%
+  select(-date)
+
